@@ -1,3 +1,4 @@
+import com.nishtahir.CargoBuildTask
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.io.IOException
 
@@ -123,6 +124,10 @@ cargo {
             }
         }
     }
+}
+
+tasks.withType<CargoBuildTask>().configureEach {
+    doNotTrackState("Cargo builds are externally cached; always run.")
 }
 
 tasks.whenTaskAdded {
