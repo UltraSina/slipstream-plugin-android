@@ -25,26 +25,29 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    # 1. Install the EXACT NDK and Tools your build.gradle requires
+    # 1. Install NDK
     - name: Install NDK & Tools
       run: |
         yes | sdkmanager "ndk;27.2.12479018" "platforms;android-36" "build-tools;34.0.0" "cmake;3.22.1"
         echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/27.2.12479018" >> $GITHUB_ENV
 
-    # 2. THE FIX: Force Static OpenSSL & Disable Brotli
+    # 2. THE FIX: Disable Sandbox & Force Static Libs
     - name: Patch Build Scripts
       run: |
-        echo "Patching scripts to force Static OpenSSL..."
+        echo "Patching scripts..."
         
-        # We need to inject these flags into the 'cmake' command inside build_picoquic.sh
-        # Flags:
-        # -DOPENSSL_USE_STATIC_LIBS=TRUE  -> Tells CMake to find libcrypto.a (which we have) instead of libcrypto.so (missing)
-        # -DWITH_BROTLI=OFF               -> Disables Brotli so we don't need that library
+        # We inject multiple flags into the CMake command:
+        # 1. OPENSSL_USE_STATIC_LIBS=TRUE: Link against .a files
+        # 2. WITH_BROTLI=OFF: Disable Brotli (fixing the other error)
+        # 3. CMAKE_FIND_ROOT_PATH_MODE_*: Tell CMake "Look EVERYWHERE for libs, not just in NDK"
         
-        find . -name "build_picoquic.sh" -exec sed -i 's/cmake /cmake -DOPENSSL_USE_STATIC_LIBS=TRUE -DWITH_BROTLI=OFF /g' {} +
+        FLAGS="-DOPENSSL_USE_STATIC_LIBS=TRUE -DWITH_BROTLI=OFF -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=BOTH -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH"
         
-        # Verify the patch worked by printing the file content (for debugging)
-        echo "Verifying patch:"
+        # Apply the patch to build_picoquic.sh
+        find . -name "build_picoquic.sh" -exec sed -i "s/cmake /cmake $FLAGS /g" {} +
+        
+        # Verification
+        echo "Patch verification:"
         find . -name "build_picoquic.sh" -exec grep "cmake" {} +
 
     - name: Setup Rust Toolchain
@@ -63,4 +66,3 @@ jobs:
       with:
         name: slipstream-apks
         path: plugin/build/outputs/apk/debug/*.apk
-
