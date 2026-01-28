@@ -13,7 +13,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        submodules: recursive  # REQUIRED: Fetches the slipstream-rust source
+        submodules: recursive  # REQUIRED
 
     - name: set up JDK 17
       uses: actions/setup-java@v4
@@ -25,22 +25,27 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    - name: Install Specific NDK & SDK 36
+    # 1. Install the EXACT NDK and Tools your build.gradle requires
+    - name: Install NDK & Tools
       run: |
         yes | sdkmanager "ndk;27.2.12479018" "platforms;android-36" "build-tools;34.0.0" "cmake;3.22.1"
         echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/27.2.12479018" >> $GITHUB_ENV
 
-    # --- FIX START: FORCE DISABLE BROTLI ---
-    - name: Patch Slipstream to Disable Brotli
+    # 2. THE FIX: Force Static OpenSSL & Disable Brotli
+    - name: Patch Build Scripts
       run: |
-        # The build script tries to include Brotli which fails on Android.
-        # We use sed to inject the '-DWITH_BROTLI=OFF' flag into the CMake command.
-        echo "Patching build scripts..."
-        find . -type f -name "build_picoquic.sh" -exec sed -i 's/cmake /cmake -DWITH_BROTLI=OFF /g' {} +
+        echo "Patching scripts to force Static OpenSSL..."
         
-        # Just in case it uses picotls directly, try to patch CMakeLists if accessible (optional safeguard)
-        find . -name "CMakeLists.txt" -print0 | xargs -0 grep -l "option(WITH_BROTLI" | xargs sed -i 's/option(WITH_BROTLI "enable brotli support" ON)/option(WITH_BROTLI "enable brotli support" OFF)/g' || true
-    # --- FIX END ---
+        # We need to inject these flags into the 'cmake' command inside build_picoquic.sh
+        # Flags:
+        # -DOPENSSL_USE_STATIC_LIBS=TRUE  -> Tells CMake to find libcrypto.a (which we have) instead of libcrypto.so (missing)
+        # -DWITH_BROTLI=OFF               -> Disables Brotli so we don't need that library
+        
+        find . -name "build_picoquic.sh" -exec sed -i 's/cmake /cmake -DOPENSSL_USE_STATIC_LIBS=TRUE -DWITH_BROTLI=OFF /g' {} +
+        
+        # Verify the patch worked by printing the file content (for debugging)
+        echo "Verifying patch:"
+        find . -name "build_picoquic.sh" -exec grep "cmake" {} +
 
     - name: Setup Rust Toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -58,3 +63,4 @@ jobs:
       with:
         name: slipstream-apks
         path: plugin/build/outputs/apk/debug/*.apk
+
