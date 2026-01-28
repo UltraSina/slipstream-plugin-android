@@ -61,9 +61,9 @@ jobs:
 
     - name: Build Debug APK
       run: ./gradlew assembleDebug --stacktrace
-
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: slipstream-apks
-        path: plugin/build/outputs/apk/debug/*.apk
+        # The build log showed ":app:assembleDebug", so the file is in 'app/', not 'plugin/'
+        path: app/build/outputs/apk/debug/*.apk
