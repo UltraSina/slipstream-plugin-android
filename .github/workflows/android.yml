@@ -8,19 +8,40 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
-    - name: set up JDK 11
+      with:
+        submodules: recursive  # IMPORTANT: Fetches the slipstream-rust submodule code
+
+    - name: set up JDK 17
       uses: actions/setup-java@v4
       with:
-        java-version: '11'
+        java-version: '17' # AGP 8.0+ usually requires JDK 17
         distribution: 'temurin'
         cache: gradle
 
+    - name: Setup Rust Toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
+
+    - name: Setup Android NDK
+      uses: android-actions/setup-android@v3
+      # The default runner usually has NDK, but this ensures the path is set correctly if missing.
+
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
-    - name: Build with Gradle
-      run: ./gradlew build
+
+    - name: Build Debug APK
+      # 'assembleDebug' is faster and doesn't require a keystore/signing config
+      run: ./gradlew assembleDebug --stacktrace
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: slipstream-apks
+        path: plugin/build/outputs/apk/debug/*.apk
+        # If the path above is empty, try: app/build/outputs/apk/debug/*.apk
+        # (Depending on if the project root is 'app' or 'plugin')
