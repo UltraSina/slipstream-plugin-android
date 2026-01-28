@@ -13,7 +13,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        submodules: recursive  # REQUIRED: Fetches the Rust source code
+        submodules: recursive  # REQUIRED: Fetches the slipstream-rust source
 
     - name: set up JDK 17
       uses: actions/setup-java@v4
@@ -25,15 +25,15 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    # --- FIX STARTS HERE ---
-    - name: Install NDK & CMake
+    # --- THE FIX ---
+    - name: Install Specific NDK & SDK 36
       run: |
-        # Install NDK (Version 26 is standard for modern AGP, change if build fails)
-        yes | sdkmanager "ndk;26.1.10909125" "cmake;3.22.1"
+        # 1. Install the EXACT NDK version your build.gradle asks for (27.2.12479018)
+        # 2. Install Platform 36 (since you use compileSdk = 36)
+        yes | sdkmanager "ndk;27.2.12479018" "platforms;android-36" "build-tools;34.0.0" "cmake;3.22.1"
         
-        # Set environment variable so Gradle finds it
-        echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/26.1.10909125" >> $GITHUB_ENV
-    # --- FIX ENDS HERE ---
+        # 3. Tell Gradle exactly where to find it
+        echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/27.2.12479018" >> $GITHUB_ENV
 
     - name: Setup Rust Toolchain
       uses: dtolnay/rust-toolchain@stable
