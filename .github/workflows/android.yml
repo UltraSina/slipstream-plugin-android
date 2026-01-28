@@ -25,15 +25,22 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    # --- THE FIX ---
     - name: Install Specific NDK & SDK 36
       run: |
-        # 1. Install the EXACT NDK version your build.gradle asks for (27.2.12479018)
-        # 2. Install Platform 36 (since you use compileSdk = 36)
         yes | sdkmanager "ndk;27.2.12479018" "platforms;android-36" "build-tools;34.0.0" "cmake;3.22.1"
-        
-        # 3. Tell Gradle exactly where to find it
         echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/27.2.12479018" >> $GITHUB_ENV
+
+    # --- FIX START: FORCE DISABLE BROTLI ---
+    - name: Patch Slipstream to Disable Brotli
+      run: |
+        # The build script tries to include Brotli which fails on Android.
+        # We use sed to inject the '-DWITH_BROTLI=OFF' flag into the CMake command.
+        echo "Patching build scripts..."
+        find . -type f -name "build_picoquic.sh" -exec sed -i 's/cmake /cmake -DWITH_BROTLI=OFF /g' {} +
+        
+        # Just in case it uses picotls directly, try to patch CMakeLists if accessible (optional safeguard)
+        find . -name "CMakeLists.txt" -print0 | xargs -0 grep -l "option(WITH_BROTLI" | xargs sed -i 's/option(WITH_BROTLI "enable brotli support" ON)/option(WITH_BROTLI "enable brotli support" OFF)/g' || true
+    # --- FIX END ---
 
     - name: Setup Rust Toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -51,4 +58,3 @@ jobs:
       with:
         name: slipstream-apks
         path: plugin/build/outputs/apk/debug/*.apk
-        # If the download is empty, try: app/build/outputs/apk/debug/*.apk
